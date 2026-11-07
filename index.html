@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ターミナルコマンド虫食いクイズ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4">
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-bold text-center mb-2 text-green-300">ターミナルコマンド虫食いクイズ</h1>
+  <div class="bg-gray-900 rounded-xl p-4 mb-4">
+    <div class="flex gap-2 flex-wrap mb-3">
+      <span class="text-sm text-gray-400 self-center">カテゴリ:</span>
+      <button data-cat="bash" aria-label="bashカテゴリ" class="catBtn bg-green-700 hover:bg-green-600 rounded px-3 py-1 text-sm transition">bash</button>
+      <button data-cat="git" aria-label="gitカテゴリ" class="catBtn bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 text-sm transition">git</button>
+      <button data-cat="docker" aria-label="dockerカテゴリ" class="catBtn bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 text-sm transition">docker</button>
+      <button data-cat="npm" aria-label="npmカテゴリ" class="catBtn bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 text-sm transition">npm</button>
+      <button data-cat="kubectl" aria-label="kubectlカテゴリ" class="catBtn bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 text-sm transition">kubectl</button>
+    </div>
+    <div class="flex gap-4 text-sm">
+      <span>正解率: <span id="accuracy" class="text-green-400 font-bold">-</span></span>
+      <span>連続正解: <span id="streak" class="text-yellow-400 font-bold">0</span></span>
+      <span>スコア: <span id="score" class="text-blue-400 font-bold">0</span></span>
+    </div>
+  </div>
+  <div id="quizArea" class="bg-gray-900 rounded-xl p-6 mb-4">
+    <div class="text-center text-gray-500 py-8">カテゴリを選んでクイズを開始</div>
+  </div>
+  <div id="weaknessArea" class="bg-gray-900 rounded-xl p-4 hidden">
+    <h2 class="font-semibold text-sm text-gray-400 mb-2">苦手コマンド</h2>
+    <div id="weaknessList" class="flex flex-wrap gap-2"></div>
+  </div>
+</div>
+<script>
+const questions = {
+  bash: [
+    { blank: '___ -la /etc', answer: 'ls', hint: 'ファイル一覧表示（隠しファイル含む）' },
+    { blank: '___ /var/log/syslog', answer: 'tail', hint: 'ファイルの末尾を表示' },
+    { blank: '___ -rf ~/.cache', answer: 'rm', hint: 'ファイル・ディレクトリを削除' },
+    { blank: '___ -p /tmp/foo/bar', answer: 'mkdir', hint: '中間ディレクトリも含めて作成' },
+    { blank: '___ $(whoami)', answer: 'echo', hint: '文字列を出力' },
+    { blank: '___ -n 10 /var/log/auth.log', answer: 'tail', hint: '末尾10行を表示' },
+    { blank: '___ "pattern" file.txt', answer: 'grep', hint: 'テキストのパターン検索' },
+    { blank: '___ -h /dev/sda', answer: 'df', hint: 'ディスク使用量表示（人間向け）' },
+    { blank: '___ -aux | grep node', answer: 'ps', hint: '実行中プロセスを表示' },
+    { blank: '___ 8080', answer: 'lsof -i :', hint: 'ポートを使用しているプロセス確認' },
+  ],
+  git: [
+    { blank: 'git ___ --hard HEAD~1', answer: 'reset', hint: '直前のコミットを取り消す（破壊的）' },
+    { blank: 'git ___ feature-branch', answer: 'checkout', hint: 'ブランチを切り替える' },
+    { blank: 'git ___ -u origin HEAD', answer: 'push', hint: 'リモートに初回プッシュ（追跡設定）' },
+    { blank: 'git ___ --cached file.txt', answer: 'rm', hint: 'ファイルをステージから除外（作業ツリーは保持）' },
+    { blank: 'git ___ HEAD file.txt', answer: 'checkout', hint: '変更を取り消してHEADに戻す' },
+    { blank: 'git ___ --oneline', answer: 'log', hint: 'コミット履歴を1行ずつ表示' },
+    { blank: 'git ___ --no-ff feature', answer: 'merge', hint: 'fast-forwardしないマージ' },
+    { blank: 'git ___ main', answer: 'rebase', hint: '現ブランチをmainの先頭に移動' },
+    { blank: 'git ___ abc123', answer: 'cherry-pick', hint: '特定コミットのみを取り込む' },
+    { blank: 'git ___ --save', answer: 'stash', hint: '作業中の変更を一時保存' },
+  ],
+  docker: [
+    { blank: 'docker ___ -it ubuntu bash', answer: 'run', hint: 'コンテナを起動して対話モードに入る' },
+    { blank: 'docker ___ -a', answer: 'ps', hint: '全コンテナ（停止中含む）を表示' },
+    { blank: 'docker ___ myimage:latest .', answer: 'build -t', hint: 'Dockerfileからイメージをビルド' },
+    { blank: 'docker ___ container_id', answer: 'stop', hint: 'コンテナを停止' },
+    { blank: 'docker ___ container_id', answer: 'rm', hint: '停止したコンテナを削除' },
+    { blank: 'docker ___ -t myimage:v2 .', answer: 'build', hint: 'タグ付きでイメージをビルド' },
+    { blank: 'docker ___ container_id bash', answer: 'exec -it', hint: '実行中コンテナにコマンドを実行' },
+    { blank: 'docker ___ -v /data:/app/data myimage', answer: 'run', hint: 'ボリュームマウントしてコンテナ起動' },
+  ],
+  npm: [
+    { blank: 'npm ___ --save-dev jest', answer: 'install', hint: '開発依存としてパッケージをインストール' },
+    { blank: 'npm ___ -g npm', answer: 'install', hint: 'グローバルにnpmを更新' },
+    { blank: 'npm ___', answer: 'run build', hint: 'package.jsonのbuildスクリプトを実行' },
+    { blank: 'npm ___ axios', answer: 'uninstall', hint: 'パッケージを削除' },
+    { blank: 'npm ___ --dry-run', answer: 'update', hint: 'ドライランで更新内容を確認' },
+    { blank: 'npm ___', answer: 'audit fix', hint: 'セキュリティ脆弱性を自動修正' },
+    { blank: 'npm ___ express', answer: 'info', hint: 'パッケージの詳細情報を表示' },
+  ],
+  kubectl: [
+    { blank: 'kubectl ___ pods', answer: 'get', hint: 'Podの一覧を表示' },
+    { blank: 'kubectl ___ pod my-pod', answer: 'describe', hint: 'リソースの詳細情報を表示' },
+    { blank: 'kubectl ___ -f deployment.yaml', answer: 'apply', hint: 'マニフェストを適用（作成/更新）' },
+    { blank: 'kubectl ___ pod/my-pod', answer: 'delete', hint: 'リソースを削除' },
+    { blank: 'kubectl ___ my-pod -- bash', answer: 'exec -it', hint: 'Pod内でコマンドを実行' },
+    { blank: 'kubectl ___ my-pod', answer: 'logs', hint: 'Podのログを表示' },
+    { blank: 'kubectl ___ deployment my-app --replicas=3', answer: 'scale', hint: 'レプリカ数をスケール' },
+    { blank: 'kubectl ___ -n kube-system pods', answer: 'get', hint: '特定NamespaceのPod一覧' },
+  ],
+};
+
+let currentCat = 'bash';
+let currentQ = null;
+let total = 0, correct = 0, streak = 0;
+let hintShown = false;
+
+function loadWeakness() {
+  return JSON.parse(localStorage.getItem('termQuizWeak') || '{}');
+}
+function saveWeakness(w) {
+  localStorage.setItem('termQuizWeak', JSON.stringify(w));
+}
+function addWeakness(cat, q) {
+  const w = loadWeakness();
+  const key = `${cat}:${q.answer}`;
+  w[key] = (w[key] || 0) + 1;
+  saveWeakness(w);
+}
+
+function renderWeakness() {
+  const w = loadWeakness();
+  const entries = Object.entries(w).sort((a,b) => b[1]-a[1]).slice(0, 10);
+  const el = document.getElementById('weaknessArea');
+  if (entries.length === 0) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  document.getElementById('weaknessList').innerHTML = entries.map(([k, cnt]) => {
+    const [cat, cmd] = k.split(':');
+    return `<span class="bg-red-900/50 border border-red-700 rounded px-2 py-1 text-xs text-red-300">${cat}: <span class="font-mono text-white">${cmd}</span> <span class="text-red-500">×${cnt}</span></span>`;
+  }).join('');
+}
+
+function pickQuestion() {
+  const qs = questions[currentCat];
+  currentQ = qs[Math.floor(Math.random() * qs.length)];
+  hintShown = false;
+  renderQuestion();
+}
+
+function renderQuestion() {
+  if (!currentQ) return;
+  document.getElementById('quizArea').innerHTML = `
+    <div class="mb-4">
+      <span class="text-xs bg-green-900 text-green-300 rounded px-2 py-0.5">${currentCat}</span>
+    </div>
+    <div class="bg-black rounded-lg p-4 font-mono text-lg text-green-400 mb-4">
+      $ <span class="text-white">${currentQ.blank}</span>
+    </div>
+    <div class="text-sm text-gray-400 mb-4">空欄 <code class="bg-gray-800 px-1 rounded">___</code> に入るコマンド（またはオプション）を答えてください</div>
+    <div class="flex gap-2 mb-3">
+      <input id="answerInput" type="text" aria-label="答え入力" placeholder="コマンドを入力..." class="flex-1 bg-gray-800 border border-gray-700 rounded-lg p-2 font-mono focus:outline-none focus:border-green-500">
+      <button id="submitBtn" aria-label="答え送信" class="bg-green-700 hover:bg-green-600 rounded-lg px-4 py-2 font-semibold transition">送信</button>
+    </div>
+    <div class="flex gap-2">
+      <button id="hintBtn" aria-label="ヒント表示" class="text-xs bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 transition">ヒント</button>
+      <button id="skipBtn" aria-label="スキップ" class="text-xs bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 transition">スキップ</button>
+    </div>
+    <div id="hintText" class="hidden mt-3 text-sm text-yellow-400 bg-yellow-900/20 rounded p-2"></div>
+    <div id="feedbackArea" class="mt-3"></div>
+  `;
+  document.getElementById('submitBtn').addEventListener('click', checkAnswer);
+  document.getElementById('answerInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+  document.getElementById('hintBtn').addEventListener('click', () => {
+    document.getElementById('hintText').textContent = currentQ.hint;
+    document.getElementById('hintText').classList.remove('hidden');
+    hintShown = true;
+  });
+  document.getElementById('skipBtn').addEventListener('click', () => {
+    addWeakness(currentCat, currentQ);
+    pickQuestion();
+  });
+}
+
+function checkAnswer() {
+  const input = document.getElementById('answerInput');
+  const ans = input.value.trim().toLowerCase();
+  const correct_ans = currentQ.answer.toLowerCase();
+  const fb = document.getElementById('feedbackArea');
+  total++;
+  if (ans === correct_ans) {
+    correct++;
+    streak++;
+    fb.innerHTML = `<div class="text-green-400 font-semibold">✅ 正解！ <span class="font-mono text-white">${currentQ.answer}</span></div>`;
+    updateStats();
+    setTimeout(pickQuestion, 1200);
+  } else {
+    streak = 0;
+    addWeakness(currentCat, currentQ);
+    fb.innerHTML = `<div class="text-red-400 font-semibold">❌ 不正解。正解: <span class="font-mono text-white">${currentQ.answer}</span></div><div class="text-gray-400 text-sm mt-1">${currentQ.hint}</div>`;
+    updateStats();
+    renderWeakness();
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '次の問題';
+    nextBtn.setAttribute('aria-label', '次の問題');
+    nextBtn.className = 'mt-2 bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 text-sm transition';
+    nextBtn.addEventListener('click', pickQuestion);
+    fb.appendChild(nextBtn);
+  }
+}
+
+function updateStats() {
+  document.getElementById('accuracy').textContent = total > 0 ? `${Math.round(correct/total*100)}%` : '-';
+  document.getElementById('streak').textContent = streak;
+  document.getElementById('score').textContent = correct;
+}
+
+document.querySelectorAll('.catBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentCat = btn.dataset.cat;
+    document.querySelectorAll('.catBtn').forEach(b => b.className = b.className.replace('bg-green-700','bg-gray-700'));
+    btn.className = btn.className.replace('bg-gray-700','bg-green-700');
+    pickQuestion();
+  });
+});
+
+renderWeakness();
+</script>
+</body>
+</html>
